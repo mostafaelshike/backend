@@ -21,7 +21,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // حاسم جداً: الرد على طلبات التمهيد (Preflight) التي يرسلها المتصفح تلقائياً
-app.options('*', cors(corsOptions)); 
+// بديل آخر يعمل أيضاً:
+app.use(cors(corsOptions)); // هذا كافٍ للتعامل مع الـ OPTIONS لمعظم الحالات
 
 /* ===== Middleware ===== */
 app.use(express.json({ limit: '10mb' }));
