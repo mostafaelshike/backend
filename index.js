@@ -6,16 +6,22 @@ require('dotenv').config();
 
 const app = express();
 
-/* ===== CORS (الضبط النهائي للربط بين Railway) ===== */
-app.use(cors({
+/* ===== CORS (الإعداد النهائي والأكثر أماناً لحل خطأ 0) ===== */
+const corsOptions = {
   origin: [
-    'https://frontend-production-0f4f.up.railway.app', // رابط الفرونت اند بتاعك
-    'http://localhost:4200'                           // للسماح لك بالتجربة محلياً أيضاً
+    'https://frontend-production-0f4f.up.railway.app', // رابط الفرونت اند
+    'http://localhost:4200'                           // للتجربة المحلية
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  credentials: true,
+  optionsSuccessStatus: 200 // لضمان استجابة المتصفحات القديمة
+};
+
+app.use(cors(corsOptions));
+
+// حاسم جداً: الرد على طلبات التمهيد (Preflight) التي يرسلها المتصفح تلقائياً
+app.options('*', cors(corsOptions)); 
 
 /* ===== Middleware ===== */
 app.use(express.json({ limit: '10mb' }));
@@ -26,7 +32,6 @@ app.get('/', (req, res) => {
   res.send('Backend is live and running on Railway 🚀');
 });
 
-// تأكد من وجود الملفات دي في فولدر routes عندك
 app.use('/api/products', require('./routes/product'));
 app.use('/api/users', require('./routes/user'));
 app.use('/api/orders', require('./routes/order'));
@@ -37,7 +42,6 @@ app.use((req, res) => {
 });
 
 /* ===== MongoDB ===== */
-// تأكد أنك أضفت MONGO_URI في تبويب Variables على Railway
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected to MECAL ✅'))
   .catch(err => console.error('MongoDB Connection Error:', err));
