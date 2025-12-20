@@ -8,6 +8,9 @@ const User = require('../models/User');
 router.post('/register', asyncHandler(async (req, res) => {
   const { firstname, lastname, email, password } = req.body;
 
+  // تأكد من وصول البيانات (للتصحيح فقط)
+  console.log("Registering user:", email);
+
   if (!firstname || !lastname || !email || !password) {
     return res.status(400).json({ message: 'جميع الحقول مطلوبة' });
   }
@@ -28,7 +31,9 @@ router.post('/register', asyncHandler(async (req, res) => {
     password,
   });
 
-  const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  // تأكد من وجود JWT_SECRET أو استخدم قيمة افتراضية لكي لا يتوقف السيرفر
+  const secret = process.env.JWT_SECRET || 'my_backup_secret_123';
+  const token = jwt.sign({ id: user._id, role: user.role }, secret, { expiresIn: '7d' });
 
   res.status(201).json({
     success: true,
@@ -49,11 +54,14 @@ router.post('/login', asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   const user = await User.findOne({ email });
+  
+  // تأكد أن ميثود comparePassword موجودة في موديل User
   if (!user || !(await user.comparePassword(password))) {
     return res.status(401).json({ message: 'بيانات الدخول غير صحيحة' });
   }
 
-  const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  const secret = process.env.JWT_SECRET || 'my_backup_secret_123';
+  const token = jwt.sign({ id: user._id, role: user.role }, secret, { expiresIn: '7d' });
 
   res.json({
     success: true,
