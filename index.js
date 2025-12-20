@@ -8,41 +8,44 @@ dotenv.config();
 
 const app = express();
 
-// ✅ إعدادات CORS الشاملة
+// ✅ 1. إعدادات CORS (يجب أن تكون أول شيء)
 app.use(cors({
-    origin: '*', 
+    origin: '*', // يسمح لجميع المواقع بالوصول (مناسب للمرحلة الحالية)
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 
-// ✅ معالجة JSON
+// ✅ 2. معالجة JSON
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ مسار اختباري للتأكد من حالة السيرفر
+// ✅ 3. مسار اختباري
 app.get('/', (req, res) => {
     res.status(200).send("Backend is Live and CORS is Fixed! 🚀");
 });
 
-// ✅ الروابط (Routes)
+// ✅ 4. الروابط (Routes) - تم تصحيح الفواصل هنا
+app.use('/api/products', require('./routes/product'));
+app.use('/api/users', require('./routes/user'));
+app.use('/api/orders', require('./routes/order'));
 
-app.use('/api/products',require('./routes/product')),
-app.use('/api/users',require('./routes/user')),
-app.use('/api/orders',require('./routes/order'))
-// ✅ إعدادات الـ Port و الـ URI
-// ملاحظة: Railway بيحدد الـ PORT تلقائياً، لو مش موجود هيشتغل على 8080
+// ✅ 5. إعدادات الـ Port و الـ URI
 const PORT = process.env.PORT || 8080;
 const MONGO_URI = process.env.MONGO_URI;
 
-// ✅ الاتصال بقاعدة البيانات والتشغيل
+// ✅ 6. الاتصال بقاعدة البيانات والتشغيل
+if (!MONGO_URI) {
+    console.error("❌ Error: MONGO_URI is not defined in environment variables!");
+}
+
 mongoose.connect(MONGO_URI)
     .then(() => {
-        console.log('Connected to MongoDB Successfully');
-        // ✅ إضافة '0.0.0.0' ضرورية جداً في الاستضافة السحابية
+        console.log('✅ Connected to MongoDB Successfully');
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`Server running on port ${PORT}`);
+            console.log(`🚀 Server running on port ${PORT}`);
         });
     })
     .catch(err => {
-        console.error('MongoDB Connection Error:', err);
+        console.error('❌ MongoDB Connection Error:', err);
     });
