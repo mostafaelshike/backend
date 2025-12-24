@@ -7,7 +7,7 @@ const asyncHandler = require("express-async-handler");
 const Product = require("../models/Product");
 const { verifyTokenAndAdmin } = require("../middleware/auth");
 
-// ✅ تأمين وجود مجلد الرفع تلقائياً على السيرفر (يمنع خطأ 500)
+// ✅ تأمين وجود مجلد الرفع تلقائياً
 const uploadDir = path.join(__dirname, "../uploads/");
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -15,7 +15,7 @@ if (!fs.existsSync(uploadDir)) {
 
 // إعدادات التخزين
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, "uploads/"),
+    destination: (req, file, cb) => cb(null, "uploads/"), // تأكد أن المسار مطابق لتعريف static في app.js
     filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
 });
 
@@ -24,21 +24,34 @@ const upload = multer({
     limits: { fileSize: 5 * 1024 * 1024 } 
 });
 
-// 🚀 إنشاء منتج جديد
+// ---------------------------------------------------------
+// 🚀 1. جلب كل المنتجات (هذا هو التعديل المطلوب للعرض)
+// ---------------------------------------------------------
+router.get("/", asyncHandler(async (req, res) => {
+    // جلب المنتجات وترتيبها من الأحدث للأقدم
+    const products = await Product.find().sort({ createdAt: -1 });
+    
+    // إرسال البيانات بنفس الهيكل الذي يتوقعه الأنجولار (res.products)
+    res.status(200).json({
+        success: true,
+        products: products
+    });
+}));
+
+// ---------------------------------------------------------
+// 🚀 2. إنشاء منتج جديد (معدل لضمان الدقة)
+// ---------------------------------------------------------
 router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(async (req, res) => {
     const { name, description, price, category, inStock, sectionType } = req.body;
 
-    // التأكد من الحقول المطلوبة
     if (!name || !description || !price || !category) {
-        return res.status(400).json({ message: "البيانات ناقصة: الاسم، الوصف، السعر، والقسم مطلوبين." });
+        return res.status(400).json({ message: "البيانات ناقصة" });
     }
 
-    // تجهيز مسارات الصور
     const images = req.files?.map(file => `/uploads/${file.filename}`) || [];
 
-    // التحقق من وجود صور لأن الموديل يطلبها (Required)
     if (images.length === 0) {
-        return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل للمنتج." });
+        return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
     }
 
     const product = new Product({
@@ -51,14 +64,26 @@ router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(as
         inStock: inStock === 'true' || inStock === true,
     });
 
-    try {
-        await product.save();
-        res.status(201).json({ success: true, message: "تم إنشاء المنتج بنجاح", product });
-    } catch (error) {
-        console.error("Mongoose Save Error:", error);
-        res.status(500).json({ message: "فشل حفظ المنتج في قاعدة البيانات", error: error.message });
-    }
+    await product.save();
+    res.status(201).json({ success: true, message: "تم إنشاء المنتج بنجاح", product });
 }));
 
-// (باقي المسارات PUT, DELETE, GET تبقى كما هي لديك)
+// ---------------------------------------------------------
+// 🚀 3. جلب منتج واحد (للتعديل)
+// ---------------------------------------------------------
+router.get("/:id", asyncHandler(async (req, res) => {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
+    res.status(200).json({ success: true, product });
+}));
+
+// ---------------------------------------------------------
+// 🚀 4. حذف منتج
+// ---------------------------------------------------------
+router.delete("/:id", verifyTokenAndAdmin, asyncHandler(async (req, res) => {
+    const product = await Product.findByIdAndDelete(req.params.id);
+    if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
+    res.status(200).json({ success: true, message: "تم حذف المنتج بنجاح" });
+}));
+
 module.exports = router;
