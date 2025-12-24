@@ -30,34 +30,34 @@ router.get("/", asyncHandler(async (req, res) => {
     res.status(200).json({ success: true, products: products });
 }));
 
-// 🚀 2. جلب منتج واحد (مهم جداً لظهور البيانات في الفورم)
+// 🚀 2. جلب منتج واحد
 router.get("/:id", asyncHandler(async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
     res.status(200).json({ success: true, product });
 }));
 
-// 🚀 3. تحديث منتج موجود (هذا الجزء هو الذي كان يسبب خطأ 404)
+// 🚀 3. تحديث منتج موجود
 router.put("/:id", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(async (req, res) => {
     const { name, description, price, category, inStock, sectionType, existingImages } = req.body;
 
     let product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
 
-    // معالجة الصور: الاحتفاظ بالصور القديمة ودمجها مع الجديدة
     let updatedImages = [];
     if (existingImages) {
-        // إذا أرسلت الأنجولار الصور القديمة كـ String (JSON)
         updatedImages = typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages;
     }
 
-    // إضافة الصور الجديدة إذا تم رفعها
     if (req.files && req.files.length > 0) {
-        const newImages = req.files.map(file => `/uploads/${file.filename}`);
+        // ✅ تحسين: تحويل أي Backslash إلى Forward Slash لضمان ظهور الصور على الويب
+        const newImages = req.files.map(file => {
+            const imagePath = `/uploads/${file.filename}`;
+            return imagePath.replace(/\\/g, '/'); 
+        });
         updatedImages = [...updatedImages, ...newImages];
     }
 
-    // تحديث الحقول
     product.name = name || product.name;
     product.description = description || product.description;
     product.price = price ? Number(price) : product.price;
@@ -77,7 +77,12 @@ router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(as
         return res.status(400).json({ message: "البيانات ناقصة" });
     }
 
-    const images = req.files?.map(file => `/uploads/${file.filename}`) || [];
+    // ✅ تحسين: التأكد من صيغة المسار عند الحفظ لأول مرة
+    const images = req.files?.map(file => {
+        const imagePath = `/uploads/${file.filename}`;
+        return imagePath.replace(/\\/g, '/');
+    }) || [];
+
     const product = new Product({
         name, description, price: Number(price), category,
         sectionType: sectionType || category,
