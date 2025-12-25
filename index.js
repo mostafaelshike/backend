@@ -9,8 +9,19 @@ dotenv.config();
 const app = express();
 
 // ✅ 1. إعدادات CORS
+// الأفضل تحديد الدومين بدقة بدل '*'
+const allowedOrigin = 'https://frontend-production-488e.up.railway.app';
+
 app.use(cors({
-    origin: '*', 
+    origin: allowedOrigin,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
+// دعم OPTIONS preflight لكل الروابط
+app.options('*', cors({
+    origin: allowedOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
@@ -19,8 +30,6 @@ app.use(cors({
 // ✅ 2. معالجة JSON والبيانات
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// 🗑️ شيلنا أكواد fs و path و Static Folder لأن الصور بقت روابط (URLs) من Cloudinary
 
 // ✅ 3. مسار اختباري
 app.get('/', (req, res) => {
