@@ -89,7 +89,7 @@ router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(as
     });
 
     await product.save();
-    res.status(201).json({ success: true, message: "تم إنشاء المنتج بنجاح", product });
+   res.status(201).json({ success: true, message: "نسخة كلاوديناري شغالة ✅", product });
 }));
 
 // 🚀 7. حذف منتج (بدون تغيير)
