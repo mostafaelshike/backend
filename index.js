@@ -3,53 +3,60 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
-// تحميل الإعدادات
+// تحميل الإعدادات من .env
 dotenv.config();
 
 const app = express();
 
-// ✅ 1. إعدادات CORS
-// الأفضل تحديد الدومين بدقة بدل '*'
-const allowedOrigin = 'https://frontend-production-488e.up.railway.app';
+// ✅ قائمة الدومينات المسموح بها
+const allowedOrigins = [
+    'https://frontend-production-488e.up.railway.app',
+    'https://frontend-production-57259.up.railway.app'
+];
 
+// ✅ إعدادات CORS ديناميكية
 app.use(cors({
-    origin: allowedOrigin,
+    origin: function (origin, callback) {
+        // السماح بالطلبات بدون origin (مثلاً Postman أو Curl)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
 
 // دعم OPTIONS preflight لكل الروابط
-app.options('*', cors({
-    origin: allowedOrigin,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
+app.options('*', cors());
 
-// ✅ 2. معالجة JSON والبيانات
+// ✅ معالجة JSON و URL-encoded
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ 3. مسار اختباري
+// ✅ مسار اختباري
 app.get('/', (req, res) => {
     res.status(200).send("Backend is Live with Cloudinary Support! ☁️🚀");
 });
 
-// ✅ 4. الروابط (Routes)
+// ✅ روابط API
 app.use('/api/products', require('./routes/product'));
 app.use('/api/users', require('./routes/user'));
 app.use('/api/orders', require('./routes/order'));
 
-// ✅ 5. إعدادات الـ Port و الـ URI
+// ✅ إعدادات Port و MongoDB URI
 const PORT = process.env.PORT || 8080;
 const MONGO_URI = process.env.MONGO_URI;
 
-// ✅ 6. الاتصال بقاعدة البيانات والتشغيل
 if (!MONGO_URI) {
     console.error("❌ Error: MONGO_URI is not defined in environment variables!");
 }
 
+// ✅ الاتصال بقاعدة البيانات وتشغيل السيرفر
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log('✅ Connected to MongoDB Successfully');
