@@ -5,30 +5,30 @@ const asyncHandler = require("express-async-handler");
 const Product = require("../models/Product");
 const { verifyTokenAndAdmin } = require("../middleware/auth");
 
-// 🟢 إعداد multer لتخزين الفايلات في الذاكرة (أسرع وأنظف)
+// 🟢 إعداد multer لتخزين الفايلات في الذاكرة (أفضل أداء للرفع)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB لكل صورة (Uploadcare يدعم أكبر)
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB لكل صورة
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new Error("الملف يجب أن يكون صورة!"), false);
+      cb(new Error("الملف يجب أن يكون صورة فقط!"), false);
     }
   },
 });
 
-// 🔥 دالة رفع الصورة على Uploadcare
+// 🔥 دالة رفع الصورة على Uploadcare مع تخزين دائم فوري
 const uploadToUploadcare = async (fileBuffer, originalName) => {
   const uploadcare = require("@uploadcare/upload-client");
 
   const result = await uploadcare.uploadFile(fileBuffer, {
-    publicKey: process.env.UPLOADCARE_PUBLIC_KEY, // ضروري
+    publicKey: process.env.UPLOADCARE_PUBLIC_KEY,
     fileName: originalName,
-    store: "auto", // يخزن تلقائيًا
+    store: true, // 🔑 التعديل المهم: true عشان الصورة تتخزن دائمًا ومش تتمسح
   });
 
-  // الرابط النهائي المحسن (CDN + optimization تلقائي)
+  // رابط محسن تلقائيًا لأفضل جودة وسرعة (WebP/AVIF + compression ذكي)
   return `${result.cdnUrl}-/format/auto/-/quality/smart/`;
 };
 
@@ -52,13 +52,13 @@ router.put("/:id", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(
   let product = await Product.findById(req.params.id);
   if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
 
-  // الاحتفاظ بالصور القديمة
+  // الاحتفاظ بالصور القديمة اللي المستخدم مختار يسيبها
   let updatedImages = [];
   if (existingImages) {
     updatedImages = typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages;
   }
 
-  // رفع الصور الجديدة
+  // رفع الصور الجديدة (مع تخزين دائم)
   if (req.files && req.files.length > 0) {
     const uploadPromises = req.files.map(file =>
       uploadToUploadcare(file.buffer, file.originalname)
@@ -67,7 +67,7 @@ router.put("/:id", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(
     updatedImages = [...updatedImages, ...newImages];
   }
 
-  // تحديث الحقول
+  // تحديث الحقول الأخرى
   product.name = name || product.name;
   product.description = description || product.description;
   product.price = price ? Number(price) : product.price;
@@ -92,7 +92,7 @@ router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(as
     return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
   }
 
-  // رفع كل الصور على Uploadcare
+  // رفع كل الصور مع تخزين دائم
   const uploadPromises = req.files.map(file =>
     uploadToUploadcare(file.buffer, file.originalname)
   );
