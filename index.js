@@ -2,25 +2,26 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path'); // جديد: لو عايز تخدم static files
 
-// تحميل الإعدادات من .env
+// تحميل المتغيرات من .env
 dotenv.config();
 
 const app = express();
 
-// ✅ قائمة الدومينات المسموح بها
+// ✅ قائمة الدومينات المسموح بها (أضف أي فرونت جديد هنا)
 const allowedOrigins = [
     'https://frontend-production-488e.up.railway.app',
-    'https://frontend-production-57259.up.railway.app'
+    'https://frontend-production-57259.up.railway.app',
+    'http://localhost:4200',        // للتطوير المحلي (Angular)
+    'http://localhost:3000',        // React محلي
+    'https://your-production-domain.com' // أضف دومينك النهائي لما تشتريه
 ];
 
-// ✅ إعدادات CORS ديناميكية
+// ✅ إعدادات CORS
 app.use(cors({
     origin: function (origin, callback) {
-        // السماح بالطلبات بدون origin (مثلاً Postman أو Curl)
-        if (!origin) return callback(null, true);
-
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
@@ -31,16 +32,19 @@ app.use(cors({
     credentials: true
 }));
 
-// دعم OPTIONS preflight لكل الروابط
+// دعم preflight لكل الروابط
 app.options('*', cors());
 
-// ✅ معالجة JSON و URL-encoded
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ✅ معالجة البيانات
+app.use(express.json({ limit: '20mb' })); // زيادة الحجم عشان الصور
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // ✅ مسار اختباري
 app.get('/', (req, res) => {
-    res.status(200).send("Backend is Live with Cloudinary Support! ☁️🚀");
+    res.status(200).json({
+        message: "Backend is Live with Uploadcare Support! 🚀",
+        uploadcare: "Ready for image uploads 📸"
+    });
 });
 
 // ✅ روابط API
@@ -48,22 +52,37 @@ app.use('/api/products', require('./routes/product'));
 app.use('/api/users', require('./routes/user'));
 app.use('/api/orders', require('./routes/order'));
 
-// ✅ إعدادات Port و MongoDB URI
+// ✅ (اختياري) لو عايز تخدم صور محلية أو static files
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// إعدادات Port و MongoDB
 const PORT = process.env.PORT || 8080;
 const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
-    console.error("❌ Error: MONGO_URI is not defined in environment variables!");
+    console.error("❌ Error: MONGO_URI is not defined!");
+    process.exit(1);
 }
 
-// ✅ الاتصال بقاعدة البيانات وتشغيل السيرفر
+// ✅ الاتصال بـ MongoDB وتشغيل السيرفر
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log('✅ Connected to MongoDB Successfully');
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server running on port ${PORT}`);
+            console.log(`🌍 Access it at: http://localhost:${PORT}`);
         });
     })
     .catch(err => {
-        console.error('❌ MongoDB Connection Error:', err);
+        console.error('❌ MongoDB Connection Error:', err.message);
+        process.exit(1);
     });
+
+// ✅ معالجة الأخطاء العامة (اختياري بس مفيد)
+app.use((err, req, res, next) => {
+    if (err.message === 'Not allowed by CORS') {
+        return res.status(403).json({ error: 'CORS policy: Origin not allowed' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Internal Server Error' });
+});

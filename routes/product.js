@@ -1,122 +1,123 @@
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const cloudinary = require("cloudinary").v2;
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const asyncHandler = require("express-async-handler");
 const Product = require("../models/Product");
 const { verifyTokenAndAdmin } = require("../middleware/auth");
 
-// 🟢 إعدادات Cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUD_NAME,
-    api_key: process.env.CLOUD_API_KEY,
-    api_secret: process.env.CLOUD_API_SECRET,
-});
-
-// 🔥 تعديل Storage لـ Cloudinary مع log
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: (req, file) => ({
-    folder: "products",
-    resource_type: "image",
-    public_id: `${Date.now()}-${file.originalname.split('.')[0]}`
-  }),
-});
-
-
+// 🟢 إعداد multer لتخزين الفايلات في الذاكرة (أسرع وأنظف)
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB لكل صورة (Uploadcare يدعم أكبر)
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("الملف يجب أن يكون صورة!"), false);
+    }
+  },
 });
 
+// 🔥 دالة رفع الصورة على Uploadcare
+const uploadToUploadcare = async (fileBuffer, originalName) => {
+  const uploadcare = require("@uploadcare/upload-client");
 
-// 🚀 3. جلب كل المنتجات
+  const result = await uploadcare.uploadFile(fileBuffer, {
+    publicKey: process.env.UPLOADCARE_PUBLIC_KEY, // ضروري
+    fileName: originalName,
+    store: "auto", // يخزن تلقائيًا
+  });
+
+  // الرابط النهائي المحسن (CDN + optimization تلقائي)
+  return `${result.cdnUrl}-/format/auto/-/quality/smart/`;
+};
+
+// 🚀 جلب كل المنتجات
 router.get("/", asyncHandler(async (req, res) => {
-    const products = await Product.find().sort({ createdAt: -1 });
-    res.status(200).json({ success: true, products });
+  const products = await Product.find().sort({ createdAt: -1 });
+  res.status(200).json({ success: true, products });
 }));
 
-// 🚀 4. جلب منتج واحد
+// 🚀 جلب منتج واحد
 router.get("/:id", asyncHandler(async (req, res) => {
-    const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
-    res.status(200).json({ success: true, product });
+  const product = await Product.findById(req.params.id);
+  if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
+  res.status(200).json({ success: true, product });
 }));
 
-// 🚀 5. تحديث منتج موجود
+// 🚀 تحديث منتج موجود
 router.put("/:id", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(async (req, res) => {
-    try {
-        const { name, description, price, category, inStock, sectionType, existingImages } = req.body;
+  const { name, description, price, category, inStock, sectionType, existingImages } = req.body;
 
-        let product = await Product.findById(req.params.id);
-        if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
+  let product = await Product.findById(req.params.id);
+  if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
 
-        let updatedImages = [];
-        if (existingImages) {
-            updatedImages = typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages;
-        }
+  // الاحتفاظ بالصور القديمة
+  let updatedImages = [];
+  if (existingImages) {
+    updatedImages = typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages;
+  }
 
-        if (req.files && req.files.length > 0) {
-            const newImages = req.files.map(file => file.path);
-            updatedImages = [...updatedImages, ...newImages];
-        }
+  // رفع الصور الجديدة
+  if (req.files && req.files.length > 0) {
+    const uploadPromises = req.files.map(file =>
+      uploadToUploadcare(file.buffer, file.originalname)
+    );
+    const newImages = await Promise.all(uploadPromises);
+    updatedImages = [...updatedImages, ...newImages];
+  }
 
-        product.name = name || product.name;
-        product.description = description || product.description;
-        product.price = price ? Number(price) : product.price;
-        product.category = category || product.category;
-        product.sectionType = sectionType || product.sectionType;
-        product.inStock = inStock === 'true' || inStock === true;
-        product.images = updatedImages;
+  // تحديث الحقول
+  product.name = name || product.name;
+  product.description = description || product.description;
+  product.price = price ? Number(price) : product.price;
+  product.category = category || product.category;
+  product.sectionType = sectionType || product.sectionType;
+  product.inStock = inStock === 'true' || inStock === true;
+  product.images = updatedImages;
 
-        await product.save();
-        res.status(200).json({ success: true, message: "تم تحديث المنتج بنجاح", product });
-    } catch (error) {
-        console.error("🔥 Error updating product:", error);
-        res.status(500).json({ message: "حدث خطأ أثناء تحديث المنتج", error: error.message });
-    }
+  await product.save();
+  res.status(200).json({ success: true, message: "تم تحديث المنتج بنجاح", product });
 }));
 
-// 🚀 6. إنشاء منتج جديد
+// 🚀 إنشاء منتج جديد
 router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(async (req, res) => {
-    try {
-        const { name, description, price, category, inStock, sectionType } = req.body;
-        if (!name || !description || !price || !category) {
-            return res.status(400).json({ message: "البيانات ناقصة" });
-        }
+  const { name, description, price, category, inStock, sectionType } = req.body;
 
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
-        }
+  if (!name || !description || !price || !category) {
+    return res.status(400).json({ message: "البيانات ناقصة" });
+  }
 
-        console.log("FILES:", req.files);
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
+  }
 
-        const images = req.files.map(file => file.path);
+  // رفع كل الصور على Uploadcare
+  const uploadPromises = req.files.map(file =>
+    uploadToUploadcare(file.buffer, file.originalname)
+  );
 
-        const product = new Product({
-            name,
-            description,
-            price: Number(price),
-            category,
-            sectionType: sectionType || category,
-            images,
-            inStock: inStock === 'true' || inStock === true,
-        });
+  const images = await Promise.all(uploadPromises);
 
-        await product.save();
-        res.status(201).json({ success: true, message: "تم إنشاء المنتج بنجاح", product });
-    } catch (error) {
-        console.error("🔥 Error creating product:", error);
-        res.status(500).json({ message: "حدث خطأ أثناء إنشاء المنتج", error: error.message });
-    }
+  const product = new Product({
+    name,
+    description,
+    price: Number(price),
+    category,
+    sectionType: sectionType || category,
+    inStock: inStock === 'true' || inStock === true,
+    images,
+  });
+
+  await product.save();
+  res.status(201).json({ success: true, message: "تم إنشاء المنتج بنجاح", product });
 }));
 
-// 🚀 7. حذف منتج
+// 🚀 حذف منتج
 router.delete("/:id", verifyTokenAndAdmin, asyncHandler(async (req, res) => {
-    const product = await Product.findByIdAndDelete(req.params.id);
-    if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
-    res.status(200).json({ success: true, message: "تم حذف المنتج بنجاح" });
+  const product = await Product.findByIdAndDelete(req.params.id);
+  if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
+  res.status(200).json({ success: true, message: "تم حذف المنتج بنجاح" });
 }));
 
 module.exports = router;
