@@ -8,27 +8,31 @@ const { verifyTokenAndAdmin } = require("../middleware/auth");
 // إعداد multer للذاكرة
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB حد أقصى للصورة
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
     else cb(new Error("الملف يجب أن يكون صورة!"), false);
   },
 });
 
-// دالة الرفع مع تخزين دائم
+// دالة رفع الصور إلى Uploadcare مع رابط عرض صحيح 100%
 const uploadToUploadcare = async (fileBuffer, originalName) => {
   const uploadcare = require("@uploadcare/upload-client");
 
   const result = await uploadcare.uploadFile(fileBuffer, {
     publicKey: process.env.UPLOADCARE_PUBLIC_KEY,
     fileName: originalName,
-    store: "1", // 🔑 التعديل النهائي: "1" عشان التخزين الدائم 100%
+    store: "1", // تخزين دائم (مهم جدًا)
   });
 
-  return `${result.cdnUrl}-/format/auto/-/quality/smart/`;
+  // الرابط الصحيح مع تحسين تلقائي للجودة والصيغة (WebP/AVIF إلخ)
+  return `https://ucarecdn.com/${result.uuid}/-/format/auto/-/quality/smart/`;
+
+  // اختياري: لو عايز تضيف اسم الملف في الرابط (أجمل بصريًا)
+  // return `https://ucarecdn.com/${result.uuid}/${encodeURIComponent(originalName)}-/format/auto/-/quality/smart/`;
 };
 
-// جلب المنتجات
+// جلب كل المنتجات
 router.get("/", asyncHandler(async (req, res) => {
   const products = await Product.find().sort({ createdAt: -1 });
   res.status(200).json({ success: true, products });
@@ -48,10 +52,14 @@ router.put("/:id", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(
   let product = await Product.findById(req.params.id);
   if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
 
-  let updatedImages = existingImages ? (typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages) : [];
+  let updatedImages = existingImages 
+    ? (typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages) 
+    : [];
 
   if (req.files && req.files.length > 0) {
-    const newImages = await Promise.all(req.files.map(file => uploadToUploadcare(file.buffer, file.originalname)));
+    const newImages = await Promise.all(
+      req.files.map(file => uploadToUploadcare(file.buffer, file.originalname))
+    );
     updatedImages = [...updatedImages, ...newImages];
   }
 
@@ -71,10 +79,15 @@ router.put("/:id", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(
 router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(async (req, res) => {
   const { name, description, price, category, inStock, sectionType } = req.body;
 
-  if (!name || !description || !price || !category) return res.status(400).json({ message: "البيانات ناقصة" });
-  if (!req.files || req.files.length === 0) return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
+  if (!name || !description || !price || !category) 
+    return res.status(400).json({ message: "البيانات ناقصة" });
 
-  const images = await Promise.all(req.files.map(file => uploadToUploadcare(file.buffer, file.originalname)));
+  if (!req.files || req.files.length === 0) 
+    return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
+
+  const images = await Promise.all(
+    req.files.map(file => uploadToUploadcare(file.buffer, file.originalname))
+  );
 
   const product = new Product({
     name,
