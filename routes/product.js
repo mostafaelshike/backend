@@ -16,20 +16,22 @@ const upload = multer({
 });
 
 // دالة رفع الصور إلى Uploadcare مع رابط عرض صحيح 100%
+// دالة رفع الصور إلى Uploadcare مع رابط عرض مضمون ومحسن جدًا
 const uploadToUploadcare = async (fileBuffer, originalName) => {
   const uploadcare = require("@uploadcare/upload-client");
 
   const result = await uploadcare.uploadFile(fileBuffer, {
     publicKey: process.env.UPLOADCARE_PUBLIC_KEY,
     fileName: originalName,
-    store: "1", // تخزين دائم (مهم جدًا)
+    store: "1", // تخزين دائم (مهم عشان الصور متتحذفش)
   });
 
-  // الرابط الصحيح مع تحسين تلقائي للجودة والصيغة (WebP/AVIF إلخ)
-  return `https://ucarecdn.com/${result.uuid}/-/format/auto/-/quality/smart/`;
+  // الرابط الأمثل والمضمون: preview + تحسين صيغة وجودة
+  // -/preview/ يضمن عرض الصورة فورًا مهما كانت الصيغة
+  return `https://ucarecdn.com/${result.uuid}/-/preview/-/format/auto/-/quality/smart/`;
 
-  // اختياري: لو عايز تضيف اسم الملف في الرابط (أجمل بصريًا)
-  // return `https://ucarecdn.com/${result.uuid}/${encodeURIComponent(originalName)}-/format/auto/-/quality/smart/`;
+  // لو عايز thumbnails أصغر (مثالي للعرض في الصفحات):
+  // return `https://ucarecdn.com/${result.uuid}/-/preview/800x800/-/format/auto/-/quality/smart/`;
 };
 
 // جلب كل المنتجات
