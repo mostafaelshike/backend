@@ -27,7 +27,7 @@ const uploadToUploadcare = async (fileBuffer, originalName) => {
   });
 
   // ✅ الحل الصحيح: حدد أبعاد للـ preview (مثال: 800x800 كحد أقصى مع الحفاظ على النسبة)
-  return `https://ucarecdn.com/${result.uuid}/-/preview/800x800/-/format/auto/-/quality/smart/`;
+  return `https://ucarecdn.com/${result.uuid}/-/resize/600x600/-/format/auto/-/quality/smart/`;
 
   // أو لو عايز حجم أصغر للعرض في الجدول:
   // return `https://ucarecdn.com/${result.uuid}/-/preview/400x400/-/format/auto/-/quality/smart/`;
