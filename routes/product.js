@@ -23,15 +23,14 @@ const uploadToUploadcare = async (fileBuffer, originalName) => {
   const result = await uploadcare.uploadFile(fileBuffer, {
     publicKey: process.env.UPLOADCARE_PUBLIC_KEY,
     fileName: originalName,
-    store: "1", // تخزين دائم (مهم عشان الصور متتحذفش)
+    store: "1",
   });
 
-  // الرابط الأمثل والمضمون: preview + تحسين صيغة وجودة
-  // -/preview/ يضمن عرض الصورة فورًا مهما كانت الصيغة
-  return `https://ucarecdn.com/${result.uuid}/-/preview/-/format/auto/-/quality/smart/`;
+  // ✅ الحل الصحيح: حدد أبعاد للـ preview (مثال: 800x800 كحد أقصى مع الحفاظ على النسبة)
+  return `https://ucarecdn.com/${result.uuid}/-/preview/800x800/-/format/auto/-/quality/smart/`;
 
-  // لو عايز thumbnails أصغر (مثالي للعرض في الصفحات):
-  // return `https://ucarecdn.com/${result.uuid}/-/preview/800x800/-/format/auto/-/quality/smart/`;
+  // أو لو عايز حجم أصغر للعرض في الجدول:
+  // return `https://ucarecdn.com/${result.uuid}/-/preview/400x400/-/format/auto/-/quality/smart/`;
 };
 
 // جلب كل المنتجات
