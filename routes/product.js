@@ -22,24 +22,21 @@ const uploadToUploadcare = async (fileBuffer, originalName) => {
 
   try {
     const result = await uploadcare.uploadFile(fileBuffer, {
-      publicKey: process.env.UPLOADCARE_PUBLIC_KEY,  // fb2c0ab85e74ae86
+      publicKey: process.env.UPLOADCARE_PUBLIC_KEY,
       fileName: originalName,
-      store: "auto"  // ← التغيير الرئيسي: auto بدل "1"
+      store: "auto",  // ← ده الحل السحري للـ trial accounts
     });
 
-    console.log("✅ UPLOADCARE UUID:", result.uuid);
-    
-    // رابط مباشر 100% شغال (بدون format/quality/resize)
-    const imageUrl = `https://ucarecdn.com/${result.uuid}/`;
-    console.log("✅ IMAGE URL:", imageUrl);
-    
-    return imageUrl;
+    console.log("✅ Uploadcare رفع ناجح - UUID:", result.uuid);
+    console.log("✅ رابط الصورة المباشر:", `https://ucarecdn.com/${result.uuid}/`);
+
+    // رابط مباشر بسيط جدًا ومضمون (بدون أي إضافات عشان متعملش 404)
+    return `https://ucarecdn.com/${result.uuid}/`;
   } catch (error) {
-    console.error("❌ UPLOADCARE ERROR:", error.message);
-    throw new Error("فشل رفع الصورة");
+    console.error("❌ خطأ في رفع الصورة إلى Uploadcare:", error.message);
+    throw new Error("فشل رفع الصورة إلى Uploadcare");
   }
 };
-
 // جلب كل المنتجات
 router.get("/", asyncHandler(async (req, res) => {
   const products = await Product.find().sort({ createdAt: -1 });
