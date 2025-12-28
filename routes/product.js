@@ -20,17 +20,24 @@ const upload = multer({
 const uploadToUploadcare = async (fileBuffer, originalName) => {
   const uploadcare = require("@uploadcare/upload-client");
 
-  const result = await uploadcare.uploadFile(fileBuffer, {
-    publicKey: process.env.UPLOADCARE_PUBLIC_KEY,
-    fileName: originalName,
-    store: "1",
-  });
+  try {
+    const result = await uploadcare.uploadFile(fileBuffer, {
+      publicKey: process.env.UPLOADCARE_PUBLIC_KEY,  // fb2c0ab85e74ae86
+      fileName: originalName,
+      store: "auto"  // ← التغيير الرئيسي: auto بدل "1"
+    });
 
-  // ✅ الحل الصحيح: حدد أبعاد للـ preview (مثال: 800x800 كحد أقصى مع الحفاظ على النسبة)
-  return `https://ucarecdn.com/${result.uuid}/-/resize/600x600/-/format/auto/-/quality/smart/`;
-
-  // أو لو عايز حجم أصغر للعرض في الجدول:
-  // return `https://ucarecdn.com/${result.uuid}/-/preview/400x400/-/format/auto/-/quality/smart/`;
+    console.log("✅ UPLOADCARE UUID:", result.uuid);
+    
+    // رابط مباشر 100% شغال (بدون format/quality/resize)
+    const imageUrl = `https://ucarecdn.com/${result.uuid}/`;
+    console.log("✅ IMAGE URL:", imageUrl);
+    
+    return imageUrl;
+  } catch (error) {
+    console.error("❌ UPLOADCARE ERROR:", error.message);
+    throw new Error("فشل رفع الصورة");
+  }
 };
 
 // جلب كل المنتجات
