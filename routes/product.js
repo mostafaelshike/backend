@@ -4,27 +4,45 @@ const multer = require("multer");
 const asyncHandler = require("express-async-handler");
 const Product = require("../models/Product");
 const { verifyTokenAndAdmin } = require("../middleware/auth");
-const path = require('path'); // جديد
+const cloudinary = require("cloudinary").v2;
 
-// إعداد multer للتخزين المحلي على القرص
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // المجلد اللي هيتخزن فيه الصور
-  },
-  filename: (req, file, cb) => {
-    // اسم فريد عشان متكررش
-    cb(null, Date.now() + '-' + file.originalname.replace(/ /g, '_'));
-  }
+// إعداد Cloudinary من المتغيرات البيئية
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// multer في الذاكرة فقط (مش هيكتب على القرص)
 const upload = multer({
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB حد أقصى
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
     else cb(new Error("الملف يجب أن يكون صورة!"), false);
   },
 });
+
+// دالة رفع الصورة إلى Cloudinary
+const uploadToCloudinary = async (file) => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      {
+        resource_type: "image",
+        folder: "mecal_products", // مجلد منظم في Cloudinary (اختياري)
+        transformation: [
+          { width: 800, height: 800, crop: "limit" }, // تحجيم آمن
+          { quality: "auto" },
+          { fetch_format: "auto" }
+        ]
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result.secure_url);
+      }
+    ).end(file.buffer);
+  });
+};
 
 // جلب كل المنتجات
 router.get("/", asyncHandler(async (req, res) => {
@@ -51,7 +69,9 @@ router.put("/:id", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(
     : [];
 
   if (req.files && req.files.length > 0) {
-    const newImages = req.files.map(file => `/uploads/${file.filename}`);
+    const newImages = await Promise.all(
+      req.files.map(file => uploadToCloudinary(file))
+    );
     updatedImages = [...updatedImages, ...newImages];
   }
 
@@ -77,7 +97,9 @@ router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(as
   if (!req.files || req.files.length === 0) 
     return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
 
-  const images = req.files.map(file => `/uploads/${file.filename}`);
+  const images = await Promise.all(
+    req.files.map(file => uploadToCloudinary(file))
+  );
 
   const product = new Product({
     name,

@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const path = require('path');
 
 // تحميل المتغيرات من .env
 dotenv.config();
@@ -13,9 +12,9 @@ const app = express();
 const allowedOrigins = [
     'https://frontend-production-488e.up.railway.app',
     'https://frontend-production-57259.up.railway.app',
-    'http://localhost:4200',        // Angular محلي
-    'http://localhost:3000',        // React محلي
-    'https://your-production-domain.com' // دومينك النهائي لما تشتريه
+    'http://localhost:4200',
+    'http://localhost:3000',
+    'https://your-production-domain.com'
 ];
 
 // ✅ إعدادات CORS
@@ -32,22 +31,18 @@ app.use(cors({
     credentials: true
 }));
 
-// دعم preflight لكل الروابط
 app.options('*', cors());
 
 // ✅ معالجة البيانات
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// ✅ خدمة الصور المحلية من مجلد uploads (التعديل المهم جدًا)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// ✅ مسار اختباري
+// ✅ مسار اختباري محدث لـ Cloudinary
 app.get('/', (req, res) => {
     res.status(200).json({
-        message: "Backend is Live with Local Image Uploads! 🚀",
-        images: "Images are now served from /uploads folder locally",
-        note: "No more Uploadcare trial deletion issues!"
+        message: "Backend is Live with Cloudinary Image Uploads! 🚀",
+        images: "Images are now uploaded to Cloudinary - fast, free, permanent",
+        cloudinary: "Best image solution for production"
     });
 });
 
@@ -72,7 +67,7 @@ mongoose.connect(MONGO_URI)
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server running on port ${PORT}`);
             console.log(`🌍 Access it at: http://localhost:${PORT}`);
-            console.log(`🖼️  Images served at: http://localhost:${PORT}/uploads/your-image.jpg`);
+            console.log(`☁️  Images uploaded to Cloudinary - no more local storage needed`);
         });
     })
     .catch(err => {
