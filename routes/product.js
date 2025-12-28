@@ -4,39 +4,28 @@ const multer = require("multer");
 const asyncHandler = require("express-async-handler");
 const Product = require("../models/Product");
 const { verifyTokenAndAdmin } = require("../middleware/auth");
+const path = require('path'); // جديد
 
-// إعداد multer للذاكرة
+// إعداد multer للتخزين المحلي على القرص
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/'); // المجلد اللي هيتخزن فيه الصور
+  },
+  filename: (req, file, cb) => {
+    // اسم فريد عشان متكررش
+    cb(null, Date.now() + '-' + file.originalname.replace(/ /g, '_'));
+  }
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB حد أقصى للصورة
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB حد أقصى
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
     else cb(new Error("الملف يجب أن يكون صورة!"), false);
   },
 });
 
-// دالة رفع الصور إلى Uploadcare مع رابط عرض صحيح 100%
-// دالة رفع الصور إلى Uploadcare مع رابط عرض مضمون ومحسن جدًا
-const uploadToUploadcare = async (fileBuffer, originalName) => {
-  const uploadcare = require("@uploadcare/upload-client");
-
-  try {
-    const result = await uploadcare.uploadFile(fileBuffer, {
-      publicKey: process.env.UPLOADCARE_PUBLIC_KEY,
-      fileName: originalName,
-      store: "auto",  // ← ده الحل السحري للـ trial accounts
-    });
-
-    console.log("✅ Uploadcare رفع ناجح - UUID:", result.uuid);
-    console.log("✅ رابط الصورة المباشر:", `https://ucarecdn.com/${result.uuid}/`);
-
-    // رابط مباشر بسيط جدًا ومضمون (بدون أي إضافات عشان متعملش 404)
-    return `https://ucarecdn.com/${result.uuid}/`;
-  } catch (error) {
-    console.error("❌ خطأ في رفع الصورة إلى Uploadcare:", error.message);
-    throw new Error("فشل رفع الصورة إلى Uploadcare");
-  }
-};
 // جلب كل المنتجات
 router.get("/", asyncHandler(async (req, res) => {
   const products = await Product.find().sort({ createdAt: -1 });
@@ -62,9 +51,7 @@ router.put("/:id", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(
     : [];
 
   if (req.files && req.files.length > 0) {
-    const newImages = await Promise.all(
-      req.files.map(file => uploadToUploadcare(file.buffer, file.originalname))
-    );
+    const newImages = req.files.map(file => `/uploads/${file.filename}`);
     updatedImages = [...updatedImages, ...newImages];
   }
 
@@ -90,9 +77,7 @@ router.post("/", verifyTokenAndAdmin, upload.array("images", 5), asyncHandler(as
   if (!req.files || req.files.length === 0) 
     return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
 
-  const images = await Promise.all(
-    req.files.map(file => uploadToUploadcare(file.buffer, file.originalname))
-  );
+  const images = req.files.map(file => `/uploads/${file.filename}`);
 
   const product = new Product({
     name,
